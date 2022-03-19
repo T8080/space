@@ -1,5 +1,8 @@
 (ns space.parser
-  [:require [instaparse.core :as insta]])
+  [:require
+   [instaparse.core :as insta]
+   [clojure.edn :as edn]])
+
 
 
 (defn indent-depth [s] (if (= (first s) \space)
@@ -32,7 +35,7 @@
              (clojure.string/replace (str "\n" s "\n") #"\n+" "\n") [])))
 
 (def G "
-program            = vs (exp vs)*
+<program>            = vs (exp vs)*
 
 <exp>              = exp-indent-list
 <exp-indent-list>  = indent-list  | exp-nesting-list
@@ -64,7 +67,7 @@ number   = #'\\d+'
 def plus; fn (a b)
   if a .+ zero
     b
-    plus(a.++, b.++)
+    plus(a.--, b.++)
 
 plus(1, 2)
 ")
@@ -73,3 +76,16 @@ plus(1, 2)
 
 (defn parse [s]
   (parser (tokenized-string s)))
+
+(defn strip [tree]
+  (insta/transform
+   {:list (fn [& x] (apply list x))
+    :indent-list (fn [& x] (apply list x))
+    :nesting-list (fn [& x] (apply list x))
+    :symbol symbol
+    :number (fn [x] (edn/read-string x))
+    :postfix (fn [pre post & args] (apply list post pre args))
+    :infix (fn [a op b] (list op a b))}
+   tree))
+
+(strip (parse s))
