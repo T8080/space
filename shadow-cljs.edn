@@ -8,5 +8,6 @@
 
  :builds
  {:app {:target :browser
+        :compiler-options {:optimizations :simple}
         :modules {:main {:entries [space.main
                                    space.parser]}}}}}

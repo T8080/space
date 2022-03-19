@@ -1,4 +1,5 @@
-(ns space.main)
+(ns space.main
+  [:require cljs.pprint space.parser])
 
 (defn parse [s]
   (with-out-str
