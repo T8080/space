@@ -1,0 +1,13 @@
+body {
+    font-size: 16px;
+    max-width: 80ch;
+    margin: auto;
+}
+
+body > * {
+    width: 100%
+}
+
+textarea {
+    font-size: 16px;
+}

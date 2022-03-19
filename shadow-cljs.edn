@@ -8,6 +8,5 @@
 
  :builds
  {:app {:target :browser
-        :compiler-options {:optimizations :simple}
-        :modules {:main {:entries [space.main
-                                   space.parser]}}}}}
+        :compiler-options {:infer-externs :auto}
+        :modules {:main {:init-fn space.main/init}}}}}
