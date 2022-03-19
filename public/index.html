@@ -3,10 +3,17 @@
     <head>
         <meta charset="utf-8">
         <title>Space</title>
+        <link rel="stylesheet" href="style.css">
     </head>
     <body>
         <div id="root"></div>
-        <textarea id="input">AAAAAAAAAAAAAAAAAAA</textarea>
+        <textarea id="input" rows="10" cols="40">
+def add; fn (a b)
+  if a .= 0
+    b
+    add(a.++, b.++)
+
+        </textarea>
         <br>
         <button id="button">parse</button>
         <br>
