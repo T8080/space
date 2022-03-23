@@ -8,12 +8,11 @@
     <body>
         <div id="root"></div>
         <textarea id="input" rows="10" cols="40">
-def add; fn (a b)
+letfn add (a b)
   if a .= 0
     b
-    add(a.--, b.++)
-
-add(7, 5)</textarea>
+    add(a.dec, b.inc)
+  add(2, 3)</textarea>
         <br>
         <button id="button">parse</button>
         <br>
