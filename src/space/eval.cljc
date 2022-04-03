@@ -2,23 +2,17 @@
 
 (defrecord Proc [env args body])
 
-(defrecord Env-rec [env symbol args body])
-
 (defn env-get [env symbol]
-  (if (instance? Env-rec env)
-    (if (= (:symbol env) symbol)
-      (->Proc env (:args env) (:body env))
-      (or (get env symbol)
-          (env-get (:env env) symbol)))
-    (or (get env symbol)
-        "error")))
+  (let [resolved (get env symbol)]
+    (cond (instance? clojure.lang.Atom resolved) (deref resolved)
+          resolved resolved
+          :else (str "unresolved symbol " symbol))))
 
 (defn env-set [env symbol value]
-  (assoc env symbol value))
+  (assoc env symbol (atom value)))
 
-
-(defn env-set-rec [env symbol args body]
-  (->Env-rec env symbol args body))
+(defn env-set! [env symbol value]
+  (swap! (get env symbol) (constantly value)))
 
 (defn env-set-multiple [env symbols values]
   (if (empty? symbols)
@@ -27,58 +21,83 @@
            (rest symbols)
            (rest values))))
 
-(declare seval)
-
+(declare eval)
 (defn apply-bindings [env keyvals]
   (if (empty? keyvals)
     env
     (recur (env-set env
                     (first keyvals)
-                    (seval  (second keyvals) env))
+                    (eval  (second keyvals) env))
            (drop 2 keyvals))))
 
-
 (defn call [exp env]
-  (let [f (seval (first exp) env)
-        args (map #(seval %1 env) (rest exp))]
+  (let [f (eval (first exp) env)
+        args (map #(eval %1 env) (rest exp))]
     (if (fn? f)
       (apply f args)
-      (seval (:body f)
+      (eval (:body f)
             (env-set-multiple (:env f)
                               (:args f)
                               args)))))
 
-(defn seval [exp env]
+(defn eval [exp env]
   (cond (number? exp) exp
         (symbol? exp) (env-get env exp)
-        (= 'if (first exp)) (if (seval (nth exp 1) env)
-                              (seval (nth exp 2) env)
-                              (seval (nth exp 3) env))
-        (= 'letfn (first exp)) (seval (nth exp 4)
-                                     (env-set-rec env
-                                                  (nth exp 1)
-                                                  (nth exp 2)
-                                                  (nth exp 3)))
-        (= 'let (first exp)) (seval (nth exp 2)
+        (= 'if (first exp)) (if (eval (nth exp 1) env)
+                              (eval (nth exp 2) env)
+                              (eval (nth exp 3) env))
+        (= 'letrec (first exp)) (eval-letrec exp env)
+        (= 'let (first exp)) (eval (nth exp 2)
                                    (apply-bindings env (nth exp 1)))
         (= 'fn (first exp)) (->Proc env
                                     (nth exp 1)
                                     (nth exp 2))
         (list? exp) (call exp env)
-        :else "error"))
+        :else "unkown"))
+
+(defn eval-letrec [exp env]
+  (let [[_ [key exp] body] exp
+        renv (env-set env key 'undefined)
+        val (eval exp renv)]
+    (env-set! renv key val)
+    (eval body renv)))
+
+(eval-letrec '(letrec (f (fn [x]
+                           (if (= x 0)
+                             1
+                             (* x (f (dec x))))))
+                      (f 4))
+             default-env)
+
+(eval '(let (f (fn (x) 1))
+         (f 0))
+      {})
+
+(eval '(= 0 1)
+      {'= =})
+
+(set! *print-level* 3)
+(set! *print-length* 10)
+(remove-method print-method clojure.lang.Atom)
+
+(let [a (atom nil)]
+  (swap! a (constantly a))
+  @a)
 
 (def default-env
   {'+ +
    '- -
+   '* *
+   '/ /
    'dec dec
    'inc inc
    '= =})
 
-(seval '(letfn add (a b)
-               (if (= a 0)
-                 b
-                 (add (dec a) (inc b)))
-               (add 2 3))
+(eval '(letfn add (a b)
+              (if (= a 0)
+                b
+                (add (dec a) (inc b)))
+              (add 2 3))
       default-env)
 
 (seval '(inc 1) default-env)
