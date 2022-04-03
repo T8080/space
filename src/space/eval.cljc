@@ -1,7 +1,10 @@
 (ns space.eval)
 
+
 (defrecord Proc [env args body])
 
+
+;; env
 (defn env-get [env symbol]
   (let [resolved (get env symbol)]
     (cond (instance? clojure.lang.Atom resolved) (deref resolved)
@@ -11,17 +14,50 @@
 (defn env-set [env symbol value]
   (assoc env symbol (atom value)))
 
-(defn env-set! [env symbol value]
-  (swap! (get env symbol) (constantly value)))
-
 (defn env-set-multiple [env symbols values]
-  (if (empty? symbols)
-    env
-    (recur (env-set env (first symbols) (first values))
-           (rest symbols)
-           (rest values))))
+  (reduce #(fn [env [k v]]
+             (env-set env k v))
+          env
+          [symbols values]))
 
+(defn env-set! [env symbol value]
+  (swap! (get env symbol) (constantly value))
+  env)
+
+(defn env-set-multiple! [env symbols values]
+  (if (empty? symbols) env
+      (recur (env-set! env (first symbols) (first values))
+             (rest symbols)
+             (rest values))))
+
+
+;; eval
 (declare eval)
+
+(defn eval-if [[_ condition consequent alternative] env]
+  (if (eval condition env)
+    (eval consequent env)
+    (eval alternative env)))
+
+(defn eval-letrec [[_ bindings body] env]
+  (let [keys (take-nth 2 bindings)
+        exps (take-nth 2 (rest bindings))
+        env (env-set-multiple env
+                              keys
+                              (repeat 'uninitialised))]
+    (env-set-multiple! env
+                       keys
+                       (map #(eval % env)
+                            exps))
+    (eval body env)))
+
+(defn eval-let [[_ bindings body] env]
+  (eval body
+        (apply-bindings env bindings)))
+
+(defn eval-fn [[_ args body] env]
+  (->Proc env args body))
+
 (defn apply-bindings [env keyvals]
   (if (empty? keyvals)
     env
@@ -30,54 +66,55 @@
                     (eval  (second keyvals) env))
            (drop 2 keyvals))))
 
-(defn call [exp env]
-  (let [f (eval (first exp) env)
-        args (map #(eval %1 env) (rest exp))]
-    (if (fn? f)
-      (apply f args)
-      (eval (:body f)
-            (env-set-multiple (:env f)
-                              (:args f)
-                              args)))))
+(defn eval-apply [[f & args] env]
+  (if (fn? f)
+    (apply f args)
+    (eval (:body f)
+          (env-set-multiple (:env f)
+                            (:args f)
+                            (map #(eval % env)
+                                 args)))))
+
+(defn eval-quote [[_ body] env]
+  body)
+
+(def special-forms
+  {'if eval-if
+   'letrec eval-letrec
+   'let eval-let
+   'fn eval-fn
+   'quote eval-quote})
 
 (defn eval [exp env]
   (cond (number? exp) exp
         (symbol? exp) (env-get env exp)
-        (= 'if (first exp)) (if (eval (nth exp 1) env)
-                              (eval (nth exp 2) env)
-                              (eval (nth exp 3) env))
-        (= 'letrec (first exp)) (eval-letrec exp env)
-        (= 'let (first exp)) (eval (nth exp 2)
-                                   (apply-bindings env (nth exp 1)))
-        (= 'fn (first exp)) (->Proc env
-                                    (nth exp 1)
-                                    (nth exp 2))
-        (list? exp) (call exp env)
+        (special-forms (first exp)) ((special-forms (first exp))
+                                     exp env)(list? exp) (call exp env)
+        (list? exp) (eval-apply exp env)
         :else "unkown"))
 
-(defn eval-letrec [exp env]
-  (let [[_ [key exp] body] exp
-        renv (env-set env key 'undefined)
-        val (eval exp renv)]
-    (env-set! renv key val)
-    (eval body renv)))
+;; test
+(eval '(letrec (add (fn [a b]
+                      (if (= a 0)
+                        b
+                        (add (dec a) (inc b)))))
+               (add 4 3))
+      default-env)
 
-(eval-letrec '(letrec (f (fn [x]
-                           (if (= x 0)
-                             1
-                             (* x (f (dec x))))))
-                      (f 4))
-             default-env)
+(eval
+ '(letrec (even
+           (fn [x]
+             (if (= x 0)
+               'even
+               (uneven (dec x))))
+           uneven
+           (fn [x]
+             (if (= x 0)
+               'uneven
+               (even (dec x)))))
+          (even 5))
+ {'= =, 'dec dec})
 
-(eval '(let (f (fn (x) 1))
-         (f 0))
-      {})
-
-(eval '(= 0 1)
-      {'= =})
-
-(set! *print-level* 3)
-(set! *print-length* 10)
 (remove-method print-method clojure.lang.Atom)
 
 (let [a (atom nil)]
@@ -93,11 +130,3 @@
    'inc inc
    '= =})
 
-(eval '(letfn add (a b)
-              (if (= a 0)
-                b
-                (add (dec a) (inc b)))
-              (add 2 3))
-      default-env)
-
-(seval '(inc 1) default-env)
