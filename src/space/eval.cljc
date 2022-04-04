@@ -75,15 +75,31 @@
                             (map #(eval % env)
                                  args)))))
 
+
 (defn eval-quote [[_ body] env]
   body)
+
+(defn eval-sequence [[exp & rest] env]
+  (if (empty? rest)
+    (eval exp env)
+    (if (and (seq? exp) (= (first exp) 'def))
+      (recur rest
+             (env-set env
+                      (nth exp 1)
+                      (eval (nth exp 2) env)))
+      (do (eval exp env)
+          (recur rest env)))))
+
+(defn eval-do [[_ & rest] env]
+  (eval-sequence rest env))
 
 (def special-forms
   {'if eval-if
    'letrec eval-letrec
    'let eval-let
    'fn eval-fn
-   'quote eval-quote})
+   'quote eval-quote
+   'do eval-do})
 
 (defn eval [exp env]
   (cond (number? exp) exp
@@ -94,12 +110,19 @@
         :else "unkown"))
 
 ;; test
-(eval '(letrec (add (fn [a b]
-                      (if (= a 0)
-                        b
-                        (add (dec a) (inc b)))))
-               (add 4 3))
-      default-env)
+
+(eval-do '(do
+            (def x 10)
+            (def y (+ x 10))
+            y)
+         default-env)
+
+(eval '(letrec (add (fn [a b
+                         (if (= a 0)
+                           b
+                           (add (dec a) (inc b)))])
+                    (add 4 3)
+                    default-env)))
 
 (eval
  '(letrec (even
