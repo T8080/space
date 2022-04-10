@@ -1,0 +1,171 @@
+#+title: Space
+Space is a work-in-progress experimental programming language that aims to reduce amount of incompatible abstraction layers. A barely functional prototype is available [[https://t8080.github.io/space/public][online]].
+
+* Syntax
+Space programs are notated in Space-expressions, a white-space sensitive extension of Lisp's S-expressions. Below is an example of ~factorial~ written in S-expressions.
+#+begin_src
+(fun factorial (n)
+  (if (equal? n 0)
+      1
+      (* n (factorial (dec n)))))
+#+end_src
+Variables are denoted with symbols (~n~, ~factorial~, ~*~, ~if~) and function calls are denoted as a parenthesized list where the first item is the function and the rest are its arguments (~(= n 0)~, ~(- n 1)~, ~(if ... ... ...)~). The advantage of S-expressions is that they are unambiguous and easy to process for computers, the disadvantage is that they are not as easy to process for most humans. Space-expressions add some notational freedom to address this issue.
+** Indentation sensitivity
+If there is an indentation anywhere in a list then the parentheses can be omitted. For example, the following are equivalent expressions
+#+begin_src
+(print a b c)
+
+(print
+  a b c)
+
+print
+  a b c
+
+print a
+  b
+  c
+
+print a
+      b
+      c
+#+end_src
+Therefore factorial can be written as:
+#+begin_src
+fun factorial (n)
+  if (equal? n 0)
+     1
+     (* n (factorial (dec n)))))
+#+end_src
+** Parenthesis placement
+opening parentheses can be placed on either side of the first symbol and all commas are ignored which allows for the conventional function application notation ~f(x, y)~ in addition to the traditional Lisp ~(f x y)~:
+#+begin_src
+fun factorial (n)
+  if equal?(n, 0)
+    1
+    *(n, factorial(dec(n)))))
+#+end_src
+** Post-call operator
+If two expressions are connected with a dot then the first expression is parsed as being the second entry in the second expression, so ~a.f(b c)~ is equivalent to ~f(a b c)~. This allows writing nested function applications as a linear call chain. Additionally in unary and binary calls the parentheses can be omitted so ~n.dec~ is equivalent to ~n.dec()~ and ~a .+ b~ is equivalent to ~a.+(b)~. Examples:
+#+begin_src
+
+collection.map(to-int) => (map collection to-int)
+3.add(5)               => (add 3 5)
+3 .add 5               => (add 3 5)
+collection.length()    => (length collection)
+collection.length      => (length collection)
+"20".to-int            => (to-int "20")
+
+read-file("numbers")
+  .split(",")
+  .map(to-int)
+  .reduce(+)
+=>
+(reduce
+  (map
+    (split
+      (read-file "numbers")
+      ",")
+    to-int)
+  +)
+#+end_src
+~factorial~ with maximal syntax sugar:
+#+begin_src
+fun factorial (n)
+  if n .= 0
+    1
+    n .* factorial(n.dec)
+#+end_src
+* Semantics
+** Special forms
+*** ~if~
+Takes any number of arguments where the uneven arguments are conditions and the even arguments are consequents and evaluates the first consequent for which the condition is truthy. If there are an uneven number of arguments then last argument is evaluated if all conditions are false.
+#+begin_src
+(if true 0 1) => 0
+(if false 0 1) => 1
+
+if false
+  0
+  1       => 1
+
+if x .< 10     "1-100"
+   x .< 1000   "10-1000+"
+   x .< 100000 "1000-10.0000"
+               "10.0000+"
+
+if condition
+  do
+    print("true branch")
+    ...
+  do
+    print("false branch")
+    ...
+
+if
+  condition0; do
+    print("branch0")
+    ...
+  condition1; do
+    print("branch1")
+    ...
+  condition2; do
+    print("branch2")
+    ...
+  do
+    print("else branch")
+    ...
+#+end_src
+*** ~fn~
+takes an argument list and an expression, returns a new function
+*** ~let~
+Takes an uneven number of arguments and evaluates the the nth argument in an environment that has been extended with the bindings [<arg0 <- arg1> ... <argn-2 <- argn-1>]
+#+begin_src
+(let x 5 x)  => 5
+
+let x 5
+  5.squared  => 25
+
+let
+  x 5
+  y 2 .* x
+  y          => 10
+
+let x 10, y 20; do
+  print(x, y)
+  ...
+#+end_src
+*** ~letrec~
+same as ~let~ but the binding value is evaluated in an environment where the binding name is already present
+*** ~do~
+takes any number of expressions, evaluates each expression and returns the value of the last expression. Inside a ~do~ form ~def~ and ~defrec~ are available which are equivalent to ~let~ and ~letrec~ except that the bindings are added to the ~do~ environment instead of a new one. Multiple immediate ~defrec~'s are handled as a single ~letrec~ with multiple bindings to allow mutual recursion
+#+begin_src
+do
+  print("side")
+  print("effects")
+  10                          => 10
+
+do
+  defrec factorial; fn (n)
+    if n .= 0
+      1
+      n .* factorial(n.dec)
+
+  factorial(5)                => 120
+
+do
+  defrec even; fn (n)
+    if n .= 0
+      "even"
+      uneven(n.dec)
+
+  defrec uneven; fn (n)
+    if b .= 0
+      "uneven"
+      even(n.dec)
+
+  even(5)                     => "uneven"
+#+end_src
+** Primitives
+currently only the following primitive functions for integers are available:
+#+begin_src
++ - * / dec in =
+#+end_src
