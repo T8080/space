@@ -1,13 +1,16 @@
 (ns space.eval)
 
-
 (defrecord Proc [env args body])
+;;
 
+(defn atom? [x]
+  (instance? #?(:clj clojure.lang.Atom :cljs cljs.core.Atom)
+             x))
 
 ;; env
 (defn env-get [env symbol]
   (let [resolved (get env symbol)]
-    (cond (instance? clojure.lang.Atom resolved) (deref resolved)
+    (cond (atom? resolved) (deref resolved)
           resolved resolved
           :else (str "unresolved symbol " symbol))))
 
@@ -34,6 +37,7 @@
 
 ;; eval
 (declare eval)
+(declare apply-bindings)
 
 (defn eval-if [[condition consequent alternative] env]
   (if (eval condition env)
@@ -81,6 +85,8 @@
 (defn eval-quote [[body] env]
   body)
 
+(declare eval-do)
+
 (defn eval-do-defrec [[exp & rest] env bindings]
   (if (and (seq? exp) (= (first exp) 'defrec))
     (recur rest
@@ -120,6 +126,14 @@
         (list? exp) (eval-apply exp env) :else "unkown"))
 
 ;; test
+(def default-env
+  {'+ +
+   '- -
+   '* *
+   '/ /
+   'dec dec
+   'inc inc
+   '= =})
 
 (eval '(do
          (defrec f (fn () (g)))
@@ -173,13 +187,3 @@
 (let [a (atom nil)]
   (swap! a (constantly a))
   @a)
-
-(def default-env
-  {'+ +
-   '- -
-   '* *
-   '/ /
-   'dec dec
-   'inc inc
-   '= =})
-

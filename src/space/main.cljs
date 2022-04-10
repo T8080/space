@@ -6,9 +6,10 @@
 
 (defn process [s]
   (let [tree (space.parser/parse s)
-        lisp (space.parser/strip tree)]
+        lisp (space.parser/strip tree)
+        lisp (list (cons 'do  lisp))]
     (with-out-str
-      (pp/pprint (eval/seval (first lisp) eval/default-env))
+      (pp/pprint (eval/eval (first lisp) eval/default-env))
       (newline)
       (binding [pp/*print-pprint-dispatch* pp/code-dispatch
                 pp/*print-miser-width* 20
