@@ -7,14 +7,25 @@
     </head>
     <body>
         <div id="root"></div>
-        <textarea id="input" rows="10" cols="40">
-letfn add (a b)
+        <textarea id="input" rows="20" cols="40">
+ldefrec add; fn (a, b)
   if a .= 0
     b
-    add(a.dec, b.inc)
-  add(2, 3)</textarea>
+    a.dec .add b.inc
+
+defrec times; fn (a, b)
+  if a .= 1
+    b
+    b .add times(a.dec, b)
+
+defrec factorial; fn (n)
+  if n .= 0
+    1
+    n .times factorial(n.dec)
+
+factorial(5)</textarea>
         <br>
-        <button id="button">parse</button>
+        <button id="button">(eval)</button>
         <br>
         <pre id="output"></pre>
     </body>
