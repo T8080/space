@@ -95,21 +95,50 @@ plus(1, 2)
 (defn parse [s]
   (parser (tokenized-string s)))
 
+(defn vec->table [list]
+  (loop [i 0
+         list list
+         table {}]
+    (if (empty? list)
+      table
+      (let [entry (first list)]
+        (if (and (coll? entry) (= (first entry) :pair))
+          (recur i (rest list) (assoc table (entry 1) (entry 2)))
+          (recur (inc i) (rest list) (assoc table i entry)))))))
+
+(defn ->table? [coll]
+  (if (any coll #(and (coll? %) (= (first %) :pair)))
+    (vec->table coll)
+    coll))
+
+(defn any [coll pred]
+  (if (empty? coll)
+    nil
+    (or (pred (first coll))
+        (any (rest coll) pred))))
+
 (defn postfix [receiver exp]
   (if (seq? exp)
-    (cons (first exp) (cons receiver (rest exp)))
-    (list exp receiver)))
+    (->table?  (vec (cons (first exp) (cons receiver (rest exp)))))
+    (->table? (vec (list exp receiver)))))
 
 (defn strip [tree]
   (insta/transform
-   {:list (fn [& x] (apply list x))
-    :indent-list (fn [& x] (apply list x))
-    :nesting-list (fn [& x] (apply list x))
+   {:list (fn [& x] (->table? (vec x)))
+    :indent-list (fn [& x] (->table? (vec x)))
+    :nesting-list (fn [& x] (->table? (vec x)))
     :symbol symbol
     :number (fn [x] (edn/read-string x))
     :postfix postfix
-    :infix (fn [a op b] (list op a b))}
+    :infix (fn [a op b] (->table? (vec (list op a b))))}
    tree))
+
+
+
+
+(strip (parse "
+(a: 1, b: 2)
+"))
 
 (strip (parse s))
 
