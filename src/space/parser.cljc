@@ -41,10 +41,14 @@
 <exp-indent-list>  = indent-list  | exp-nesting-list
 <exp-nesting-list> = nesting-list | exp-infix
 <exp-infix>        = infix        | exp-postfix
-<exp-postfix>      = postfix      | exp-atom
+<exp-postfix>      = postfix      | exp-pair
+<exp-par>          = infix-par    / list
+<exp-pair>         = pair         | exp-atom
 <exp-atom>         = atom         | exp-par
-<exp-par>          = infix-par / list
+
 <atom>             = symbol | number
+
+pair               = symbol hs? <':'> hs? exp
 
 indent-list        = exp-infix (hs exp-infix)* indent indent-list-line (vs indent-list-line)* unindent
 <indent-list-line> = exp-infix (hs exp-infix)* | exp-indent-list
@@ -54,7 +58,7 @@ infix-par          = <'('> exp-infix hs dot exp-atom hs exp-postfix <')'>
 postfix            = exp-postfix vs? indent? dot exp-atom unindent?
 list               = exp-infix? <'('> (exp-infix s)* exp-infix? <')'>
 
-symbol   = #'[^ ,\\n\\(\\);#\\d\\.]+'
+symbol   = #'[^ ,\\n\\(\\);#\\d\\.:]+'
 number   = #'\\d+'
 
 <dot>      = <'.'>
@@ -63,6 +67,10 @@ number   = #'\\d+'
 <indent>   = <'#>'>
 <unindent> = <'#<'>
 <s>        = <#'(\\n|,| |#>|#<)+'>
+")
+
+(insta/parse (insta/parser G) "
+(a: 1, b: 2)
 ")
 
 (insta/parse (insta/parser G) "
@@ -75,7 +83,7 @@ number   = #'\\d+'
 (def s
   "
 def plus; fn (a b)
-  if a .+ zero
+  if a .= zero
     b
     plus(a.--, b.++)
 
