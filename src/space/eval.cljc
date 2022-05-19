@@ -93,9 +93,23 @@
                                (:args f)
                                args)))))
 
+(env-set-multiple2 {} ['x] {'x 3})
+(env-set-multiple2 {} ['x] {1 1})
 
 (eval-apply {0 '+, 1 3, 2 5} default-env)
-(eval-apply ['+ 3 5] default-env)
+(eval-apply '[+ 3 5] default-env) {}
+
+(eval '{0 [fn [x] [ + 1 x]],
+        x 3}
+      default-env)
+
+(eval '{0 [fn [x] [ + 1 x]],
+        1 3}
+      default-env)
+
+(eval '[[fn [x] [ + 1 x]],
+        3]
+      default-env)
 
 (defn ensure-map [v]
   (if (vector? v)
@@ -105,8 +119,13 @@
 (defn vec->map [v]
   (zipmap (range (count v)) v))
 
-(defn env-set-multiple2 [env keys vals]
-  (merge env (zipmap keys vals)))
+(defn env-set-multiple2 [env keys args]
+  (loop [i 1, pargs {}]
+    (if (args i)
+      (recur (inc i)
+             (assoc pargs (keys (dec i)) (args i)))
+      (merge env pargs args))))
+
 
 
 (defn positional-values [m i]
@@ -171,13 +190,13 @@
 
 ;; test
 (def default-env
-  {'+ +
-   '- -
-   '* *
-   '/ /
-   'dec dec
-   'inc inc
-   '= =})
+  {'+ +})
+   ;; '- -
+   ;; '* *
+   ;; '/ /
+   ;; 'dec dec
+   ;; 'inc inc
+   ;; '= =})
 
 (eval '(do
          (defrec f (fn () (g)))
