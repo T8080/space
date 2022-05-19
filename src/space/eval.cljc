@@ -71,7 +71,7 @@
                     (eval  (second keyvals) env))
            (drop 2 keyvals))))
 
-(defn eval-apply [[exp & args] env]
+(defn eval-apply-old [[exp & args] env]
   (let [f (eval exp env)
         args (map #(eval % env) args)]
     (if (fn? f)
@@ -80,6 +80,50 @@
             (env-set-multiple (:env f)
                               (:args f)
                               args)))))
+
+(defn eval-apply [exp env]
+  (let [evald (map-values #(eval % env)
+                          (ensure-map exp))
+        f (evald 0)
+        args (dissoc evald 0)]
+    (if (fn? f)
+      (apply f (positional-values args 1))
+      (eval (:body f)
+            (env-set-multiple2 (:env f)
+                               (:args f)
+                               args)))))
+
+
+(eval-apply {0 '+, 1 3, 2 5} default-env)
+(eval-apply ['+ 3 5] default-env)
+
+(defn ensure-map [v]
+  (if (vector? v)
+    (vec->map v)
+    v))
+
+(defn vec->map [v]
+  (zipmap (range (count v)) v))
+
+(defn env-set-multiple2 [env keys vals]
+  (merge env (zipmap keys vals)))
+
+
+(defn positional-values [m i]
+  (for [i (iterate inc i)
+        :while (contains? m i)]
+    (m i)))
+
+(defn map-values [f map]
+  (if (vector? map)
+    (mapv f map)
+    (map-map-values f map)))
+
+(defn map-map-values [f map]
+  (let [nmap (transient {})]
+    (doseq [key (keys map)]
+      (assoc! nmap key (f (map key))))
+    (persistent! nmap)))
 
 
 (defn eval-quote [[body] env]
@@ -123,7 +167,7 @@
         (symbol? exp) (env-get env exp)
         (special-forms (first exp)) ((special-forms (first exp))
                                      (rest exp) env)
-        (list? exp) (eval-apply exp env) :else "unkown"))
+        (coll? exp) (eval-apply exp env) :else "unkown"))
 
 ;; test
 (def default-env
@@ -158,7 +202,7 @@
       default-env)
 
 
-(eval '(+ 2 3) default-env)
+(eval [+ 2 3] default-env)
 
 (eval '(letrec (add (fn [a b]
                       (if (= a 0)
