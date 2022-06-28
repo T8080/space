@@ -1,7 +1,52 @@
 (ns space.eval)
 
+(defn map-values [f map]
+  (let [nmap (transient {})]
+    (doseq [key (keys map)]
+      (assoc! nmap key (f (map key))))
+    (persistent! nmap)))
+
+(defn group-first [g]
+  (g 0))
+
+(defn group-rest [g]
+  (throw "error")
+  (cond (vector? g) (subvec g 1)
+        (map? g) (dissoc g 0)))
+
+(defn vec-name-positionals [argnames argvec from]
+  (zipmap argnames (subvec argvec from)))
+
+(defn map-name-positionals [argnames argmap from]
+  (loop [position 0, named {}]
+    (if (contains? argmap (+ position from))
+      (recur (inc position)
+             (assoc named
+                    (argnames position)
+                    (argmap (+ position from))))
+      (merge argmap named))))
+
+(defn group-name-positionals [argnames arggroup from]
+  (cond (vector? arggroup) (vec-name-positionals argnames arggroup from)
+        (map? arggroup) (map-name-positionals argnames arggroup from)))
+
+
+(group-name-positionals ['a 'b 'c] [1 2 3] 0)
+(group-name-positionals ['a 'b 'c] {0 1, 1 2, 'c 3} 1)
+
+(defn group-positionals [g from]
+  (cond (vector? g) (subvec g from)
+        (map? g)
+        (for [i (iterate inc from)
+              :while (contains? g i)]
+          (g i))))
+
+(defn group-map [f g]
+  (cond (vector? g) (mapv f g)
+        (map? g) (map-values f g)))
+
+
 (defrecord Proc [env args body])
-;;
 
 (defn atom? [x]
   (instance? #?(:clj clojure.lang.Atom :cljs cljs.core.Atom)
@@ -38,6 +83,7 @@
 ;; eval
 (declare eval)
 (declare apply-bindings)
+(declare default-env)
 
 (defn eval-if [[condition consequent alternative] env]
   (if (eval condition env)
@@ -60,8 +106,9 @@
   (eval body
         (apply-bindings env bindings)))
 
-(defn eval-fn [[args body] env]
-  (->Proc env args body))
+(defn eval-fn [exp env]
+  (->Proc env (exp 1) (exp 2)))
+
 
 (defn apply-bindings [env keyvals]
   (if (empty? keyvals)
@@ -82,67 +129,29 @@
                               args)))))
 
 (defn eval-apply [exp env]
-  (let [evald (map-values #(eval % env)
-                          (ensure-map exp))
-        f (evald 0)
-        args (dissoc evald 0)]
-    (if (fn? f)
-      (apply f (positional-values args 1))
-      (eval (:body f)
-            (env-set-multiple2 (:env f)
-                               (:args f)
-                               args)))))
-
-(env-set-multiple2 {} ['x] {'x 3})
-(env-set-multiple2 {} ['x] {1 1})
+  (let [evald (group-map #(eval % env)
+                         exp)
+        f (group-first evald)
+        args evald]
+    (cond (fn? f)
+          (apply f (group-positionals args 1))
+          (instance? Proc f)
+          (eval (:body f)
+                (merge (:env f)
+                       (group-name-positionals (:args f)
+                                               args
+                                               1))))))
 
 (eval-apply {0 '+, 1 3, 2 5} default-env)
-(eval-apply '[+ 3 5] default-env) {}
 
-(eval '{0 [fn [x] [ + 1 x]],
-        x 3}
+(eval-apply '[+ 3 5] default-env)
+
+(eval '[+ 3 5] default-env)
+
+(eval '[fn [x] 1] {})
+
+(eval '[[fn [x] [+ x x]] 2]
       default-env)
-
-(eval '{0 [fn [x] [ + 1 x]],
-        1 3}
-      default-env)
-
-(eval '[[fn [x] [ + 1 x]],
-        3]
-      default-env)
-
-(defn ensure-map [v]
-  (if (vector? v)
-    (vec->map v)
-    v))
-
-(defn vec->map [v]
-  (zipmap (range (count v)) v))
-
-(defn env-set-multiple2 [env keys args]
-  (loop [i 1, pargs {}]
-    (if (args i)
-      (recur (inc i)
-             (assoc pargs (keys (dec i)) (args i)))
-      (merge env pargs args))))
-
-
-
-(defn positional-values [m i]
-  (for [i (iterate inc i)
-        :while (contains? m i)]
-    (m i)))
-
-(defn map-values [f map]
-  (if (vector? map)
-    (mapv f map)
-    (map-map-values f map)))
-
-(defn map-map-values [f map]
-  (let [nmap (transient {})]
-    (doseq [key (keys map)]
-      (assoc! nmap key (f (map key))))
-    (persistent! nmap)))
 
 
 (defn eval-quote [[body] env]
@@ -184,9 +193,9 @@
 (defn eval [exp env]
   (cond (number? exp) exp
         (symbol? exp) (env-get env exp)
-        (special-forms (first exp)) ((special-forms (first exp))
-                                     (rest exp) env)
-        (coll? exp) (eval-apply exp env) :else "unkown"))
+        (special-forms (group-first exp)) ((special-forms (group-first exp)) exp env)
+        (coll? exp) (eval-apply exp env)
+        :else "unkown"))
 
 ;; test
 (def default-env
@@ -244,8 +253,8 @@
           (even 5))
  {'= =, 'dec dec})
 
-;; (remove-method print-method clojure.lang.Atom)
-;; (set! *print-level* 4)
+(remove-method print-method clojure.lang.Atom)
+(set! *print-level* 4)
 
 (let [a (atom nil)]
   (swap! a (constantly a))
