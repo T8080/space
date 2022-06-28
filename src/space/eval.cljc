@@ -1,5 +1,9 @@
 (ns space.eval)
 
+(defn atom? [x]
+  (instance? #?(:clj clojure.lang.Atom :cljs cljs.core.Atom)
+             x))
+
 (defn map-values [f map]
   (let [nmap (transient {})]
     (doseq [key (keys map)]
@@ -10,7 +14,6 @@
   (g 0))
 
 (defn group-rest [g]
-  (throw "error")
   (cond (vector? g) (subvec g 1)
         (map? g) (dissoc g 0)))
 
@@ -30,10 +33,6 @@
   (cond (vector? arggroup) (vec-name-positionals argnames arggroup from)
         (map? arggroup) (map-name-positionals argnames arggroup from)))
 
-
-(group-name-positionals ['a 'b 'c] [1 2 3] 0)
-(group-name-positionals ['a 'b 'c] {0 1, 1 2, 'c 3} 1)
-
 (defn group-positionals [g from]
   (cond (vector? g) (subvec g from)
         (map? g)
@@ -46,13 +45,9 @@
         (map? g) (map-values f g)))
 
 
+;; env
 (defrecord Proc [env args body])
 
-(defn atom? [x]
-  (instance? #?(:clj clojure.lang.Atom :cljs cljs.core.Atom)
-             x))
-
-;; env
 (defn env-get [env symbol]
   (let [resolved (get env symbol)]
     (cond (atom? resolved) (deref resolved)
@@ -61,7 +56,6 @@
 
 (defn env-set [env symbol value]
   (assoc env symbol (atom value)))
-
 
 (defn env-set-multiple [env symbols values]
   (if (empty? symbols)
@@ -83,15 +77,16 @@
 ;; eval
 (declare eval)
 (declare apply-bindings)
-(declare default-env)
 
-(defn eval-if [[condition consequent alternative] env]
-  (if (eval condition env)
-    (eval consequent env)
-    (eval alternative env)))
+(defn eval-if [exp env]
+  (if (eval (exp 1) env)
+    (eval (exp 2) env)
+    (eval (exp 3) env)))
 
-(defn eval-letrec [[bindings body] env]
-  (let [keys (take-nth 2 bindings)
+(defn eval-letrec [exp env]
+  (let [bindings (exp 1)
+        body (exp 2)
+        keys (take-nth 2 bindings)
         exps (take-nth 2 (rest bindings))
         env (env-set-multiple env
                               keys
@@ -102,13 +97,14 @@
                             exps))
     (eval body env)))
 
-(defn eval-let [[bindings body] env]
-  (eval body
-        (apply-bindings env bindings)))
+(defn eval-let [exp env]
+  (let [bindings (exp 1)
+        body (exp 2)]
+    (eval body
+          (apply-bindings env bindings))))
 
 (defn eval-fn [exp env]
   (->Proc env (exp 1) (exp 2)))
-
 
 (defn apply-bindings [env keyvals]
   (if (empty? keyvals)
@@ -117,16 +113,6 @@
                     (first keyvals)
                     (eval  (second keyvals) env))
            (drop 2 keyvals))))
-
-(defn eval-apply-old [[exp & args] env]
-  (let [f (eval exp env)
-        args (map #(eval % env) args)]
-    (if (fn? f)
-      (apply f args)
-      (eval (:body f)
-            (env-set-multiple (:env f)
-                              (:args f)
-                              args)))))
 
 (defn eval-apply [exp env]
   (let [evald (group-map #(eval % env)
@@ -142,43 +128,39 @@
                                                args
                                                1))))))
 
-(eval-apply {0 '+, 1 3, 2 5} default-env)
-
-(eval-apply '[+ 3 5] default-env)
-
-(eval '[+ 3 5] default-env)
-
-(eval '[fn [x] 1] {})
-
-(eval '[[fn [x] [+ x x]] 2]
-      default-env)
-
-
-(defn eval-quote [[body] env]
-  body)
+(defn eval-quote [exp env]
+  (group-rest exp))
 
 (declare eval-do)
 
-(defn eval-do-defrec [[exp & rest] env bindings]
-  (if (and (seq? exp) (= (first exp) 'defrec))
-    (recur rest
+(defn has-head? [exp head]
+  (and (coll? exp)
+       (= (group-first exp) head)))
+
+(defn eval-do-defrec [form rest env bindings]
+  (if (has-head? form 'defrec)
+    (recur (group-first rest)
+           (group-rest rest)
            env
            (-> bindings
-               (conj (nth exp 2))
-               (conj (nth exp 1))))
-    (eval-letrec (cons bindings (list (cons 'do (cons exp rest)))) env)))
+               (conj (form 1))
+               (conj (form 2))))
+    (eval-letrec ['letrec bindings (into (conj '[do] form) rest)] env)))
 
-(defn eval-do-def [[[_ key exp] & rest] env]
-  (eval-do rest
-           (env-set env
-                    key
-                    (eval exp env))))
+(defn eval-do-def [form rest env]
+  (let [key (form 1)
+        exp (form 2)
+        val (eval exp env)]
+    (eval-do rest
+             (env-set env key val))))
 
-(defn eval-do [[exp & rest] env]
-  (if (empty? rest)
-    (eval exp env)
-    (cond (and (seq? exp) (= (first exp) 'defrec)) (eval-do-defrec (cons exp rest) env '())
-          (and (seq? exp) (= (first exp) 'def)) (eval-do-def (cons exp rest) env)
+(defn eval-do [form env]
+  (let [exp (group-first form)
+        rest (group-rest form)]
+    (cond (empty? rest) (eval exp env)
+          (= exp 'do) (eval-do rest env)
+          (has-head? exp 'defrec) (eval-do-defrec exp rest env [])
+          (has-head? exp 'def) (eval-do-def exp rest env)
           :else (do (eval exp env)
                     (eval-do rest env)))))
 
@@ -192,6 +174,7 @@
 
 (defn eval [exp env]
   (cond (number? exp) exp
+        (nil? exp) nil
         (symbol? exp) (env-get env exp)
         (special-forms (group-first exp)) ((special-forms (group-first exp)) exp env)
         (coll? exp) (eval-apply exp env)
@@ -199,63 +182,36 @@
 
 ;; test
 (def default-env
-  {'+ +})
-   ;; '- -
-   ;; '* *
-   ;; '/ /
-   ;; 'dec dec
-   ;; 'inc inc
-   ;; '= =})
+  {'+ +
+   '- -
+   '* *
+   '/ /
+   'dec dec
+   'inc inc
+   '= =})
 
-(eval '(do
-         (defrec f (fn () (g)))
-         (defrec g (fn () 1))
-         4
-         (f 0))
+(eval '[do
+        [defrec f [fn [] [g]]]
+        [defrec g [fn [] 1]]
+        [f 0]]
       default-env)
 
-(eval-do '(do
-            (def x 10)
-            (def y (+ x 10))
-            y)
-         default-env)
+(eval '[do
+        [def x 10]
+        [def y [+ x 10]]
+        y]
+ default-env)
 
-(eval-letrec '((x 1, y x) x) default-env)
+(eval-letrec '[letrec [x 1, y x] x] {})
 
-(eval '(letrec (add (fn [a b]
-                      (if (= a 0)
-                        b
-                        (add (dec a) (inc b)))))
-        (add 2 3))
+(eval '[letrec [add [fn [a b]
+                     [if [= a 0]
+                      b
+                      [add [dec a] [inc b]]]]]
+        [add 2 3]]
       default-env)
 
+(eval '[+ 2 3] default-env)
 
-(eval [+ 2 3] default-env)
-
-(eval '(letrec (add (fn [a b]
-                      (if (= a 0)
-                        b
-                        (add (dec a) (inc b)))))
-               (add 2 3))
-      default-env)
-
-(eval
- '(letrec (even
-           (fn [x]
-             (if (= x 0)
-               'even
-               (uneven (dec x))))
-           uneven
-           (fn [x]
-             (if (= x 0)
-               'uneven
-               (even (dec x)))))
-          (even 5))
- {'= =, 'dec dec})
-
-(remove-method print-method clojure.lang.Atom)
-(set! *print-level* 4)
-
-(let [a (atom nil)]
-  (swap! a (constantly a))
-  @a)
+;; (remove-method print-method clojure.lang.Atom)
+;; (set! *print-level* 4)
