@@ -1,4 +1,5 @@
-(ns space.eval)
+(ns space.eval
+  [:refer-clojure :exclude [eval]])
 
 (defn atom? [x]
   (instance? #?(:clj clojure.lang.Atom :cljs cljs.core.Atom)

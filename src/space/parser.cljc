@@ -4,7 +4,6 @@
    [clojure.edn :as edn]])
 
 
-
 (defn indent-depth [s] (if (= (first s) \space)
                          (+ 1 (indent-depth (rest s)))
                          0))
@@ -95,6 +94,12 @@ plus(1, 2)
 (defn parse [s]
   (parser (tokenized-string s)))
 
+(defn any [coll pred]
+  (if (empty? coll)
+    nil
+    (or (pred (first coll))
+        (any (rest coll) pred))))
+
 (defn vec->table [list]
   (loop [i 0
          list list
@@ -111,11 +116,6 @@ plus(1, 2)
     (vec->table coll)
     coll))
 
-(defn any [coll pred]
-  (if (empty? coll)
-    nil
-    (or (pred (first coll))
-        (any (rest coll) pred))))
 
 (defn postfix [receiver exp]
   (if (seq? exp)
