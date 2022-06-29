@@ -1,15 +1,17 @@
 (ns space.main
-  [:require
+  (:require
    [cljs.pprint :as pp]
-   space.parser
-   [space.eval :as eval]])
+   [space.parser :as parser]
+   [space.eval :as eval]))
+
+
 
 (defn process [s]
   (let [tree (space.parser/parse s)
         lisp (space.parser/strip tree)
-        lisp (list (cons 'do  lisp))]
+        lisp (vec lisp)]
     (with-out-str
-      (pp/pprint (eval/eval (first lisp) eval/default-env))
+      (pp/pprint (eval/eval-do lisp eval/default-env))
       (newline)
       (binding [pp/*print-pprint-dispatch* pp/code-dispatch
                 pp/*print-miser-width* 20
@@ -18,15 +20,14 @@
       (newline)
       (pp/pprint tree))))
 
-(process "1")
 
-(process "
-letfn add (a b)
-  if a .= 0
-    b
-    add(a.dec, b.inc)
-  add(2, 3)
-")
+;; (process "
+;; letfn add (a b)
+;;   if a .= 0
+;;     b
+;;     add(a.dec, b.inc)
+;;   add(2, 3)
+;; ")
 
 (defn init []
   (let [input (js/document.querySelector "#input")
