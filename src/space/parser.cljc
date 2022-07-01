@@ -79,13 +79,6 @@ def x; fn
 
 "))
 
-(parse "
-
-x
-  y
-
-")
-
 (insta/parse (insta/parser G) "
 (a: 1, b: 2)
 ")
