@@ -14,9 +14,30 @@
 (defn group-first [g]
   (g 0))
 
+(defn group-positions-size [g]
+  (cond (vector? g) (count g)
+        (map? g)
+        (loop [i 0]
+          (if (not (contains? g i))
+            i
+            (recur (inc i))))))
+
+(defn map-rest [g]
+  (let [size (group-positions-size g)]
+    (-> (reduce (fn [m i]
+                  (assoc m (dec i) (m i)))
+                g
+                (rest (range size)))
+        (dissoc (dec size)))))
+
+(reduce (fn [m i]
+          (assoc m (dec i) (m i)))
+        {0 0, 1 1, 2 2}
+        [1 2])
+
 (defn group-rest [g]
   (cond (vector? g) (subvec g 1)
-        (map? g) (dissoc g 0)))
+        (map? g) (map-rest g)))
 
 (defn vec-name-positionals [argnames argvec from]
   (zipmap argnames (subvec argvec from)))
@@ -33,6 +54,7 @@
 (defn group-name-positionals [argnames arggroup from]
   (cond (vector? arggroup) (vec-name-positionals argnames arggroup from)
         (map? arggroup) (map-name-positionals argnames arggroup from)))
+
 
 (defn group-positionals [g from]
   (cond (vector? g) (subvec g from)
@@ -127,10 +149,15 @@
                 (merge (:env f)
                        (group-name-positionals (:args f)
                                                args
-                                               1))))))
+                                               1)))
+          (coll? f)
+          (get f (evald 1)))))
 
 (defn eval-quote [exp env]
   (group-rest exp))
+
+(defn eval-quote1 [exp env]
+  (exp 1))
 
 (declare eval-do)
 
@@ -171,6 +198,7 @@
    'let eval-let
    'fn eval-fn
    'quote eval-quote
+   'quote1 eval-quote1
    'do eval-do})
 
 (defn eval [exp env]

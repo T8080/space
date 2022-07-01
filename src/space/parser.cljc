@@ -43,22 +43,26 @@
 <exp-postfix>      = postfix      | exp-pair
 <exp-par>          = infix-par    / list
 <exp-pair>         = pair         | exp-atom
-<exp-atom>         = atom         | exp-par
+<exp-atom>         = atom         | exp-par | quote | quote-call
 
-<atom>             = symbol | number
+<atom>             = symbol | number | string
+quote              = <'\\''> exp-atom
+quote-call         = (quote-call | symbol) <'\\''> (symbol | number)
 
-pair               = symbol hs? <':'> hs? exp
+pair               = symbol <':'> hs? exp
+                   | symbol <':'> indent exp unindent
 
 indent-list        = exp-infix (hs exp-infix)* indent indent-list-line (vs indent-list-line)* unindent
 <indent-list-line> = exp-infix (hs exp-infix)* | exp-indent-list
-nesting-list       = exp-infix (hs exp-infix)* <'; '> exp-indent-list
+nesting-list       = exp-infix (hs exp-infix)* <';'> hs? exp-indent-list?
 infix              = exp-infix hs dot exp-atom hs exp-postfix
 infix-par          = <'('> exp-infix hs dot exp-atom hs exp-postfix <')'>
 postfix            = exp-postfix vs? indent? dot exp-atom unindent?
 list               = exp-infix? <'('> (exp-infix s)* exp-infix? <')'>
 
-symbol   = #'[^ ,\\n\\(\\);#\\d\\.:]+'
+symbol   = #'[^ \"\\',\\n\\(\\);#\\d\\.:]+'
 number   = #'\\d+'
+string   = <'\"'> #'[^\"]*' <'\"'>
 
 <dot>      = <'.'>
 <vs>       = <#'\\n+'>
@@ -67,6 +71,13 @@ number   = #'\\d+'
 <unindent> = <'#<'>
 <s>        = <#'(\\n|,| |#>|#<)+'>
 ")
+
+(insta/parse (insta/parser G) (tokenized-string "
+
+def x; fn
+  1 2;
+
+"))
 
 (insta/parse (insta/parser G) "
 (a: 1, b: 2)
@@ -127,13 +138,24 @@ plus(1, 2)
    {:list (fn [& x] (->table? (vec x)))
     :indent-list (fn [& x] (->table? (vec x)))
     :nesting-list (fn [& x] (->table? (vec x)))
+    :string identity
     :symbol symbol
     :number (fn [x] (edn/read-string x))
     :postfix postfix
-    :infix (fn [a op b] (->table? (vec (list op a b))))}
+    :infix (fn [a op b] (->table? (vec (list op a b))))
+    :infix-par (fn [a op b] (->table? (vec (list op a b))))
+    :quote (fn [x] ['quote1 x])
+    :quote-call (fn [x y] [x ['quote1 y]])}
    tree))
 
 
+(strip (parse "
+\"test\"
+"))
+
+(parse "
+x'y'z
+")
 
 
 (strip (parse "
