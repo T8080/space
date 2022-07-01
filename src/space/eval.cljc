@@ -198,6 +198,7 @@
    'let eval-let
    'fn eval-fn
    'quote eval-quote
+   'quote1 eval-quote1
    'do eval-do})
 
 (defn eval [exp env]

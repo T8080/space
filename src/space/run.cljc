@@ -12,13 +12,29 @@
 
 (run "
 
-quote
-  1
-  2
-  3
-  x: y
+def document; quote
+  head
+    title \"test\";
+    link rel: \"stylesheet\";
+
+document'0'2'rel
 
 ")
+
+(run "
+def l; quote
+  a b c e
+
+l'1
+")
+
+(parser/parse "
+
+l'0
+
+")
+
+
 
 
 (defn process [s]
