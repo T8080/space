@@ -43,11 +43,13 @@
 <exp-postfix>      = postfix      | exp-pair
 <exp-par>          = infix-par    / list
 <exp-pair>         = pair         | exp-atom
-<exp-atom>         = atom         | exp-par | quote | quote-call
+<exp-atom>         = atom         | exp-par
 
-<atom>             = symbol | number | string
+<atom>             = symbol | number | string | quote | quote-call | unquote
+
 quote              = <'\\''> exp-atom
 quote-call         = (quote-call | symbol) <'\\''> (symbol | number)
+unquote            = <'$'> exp-atom
 
 pair               = symbol <':'> hs? exp
                    | symbol <':'> indent exp unindent
@@ -60,7 +62,7 @@ infix-par          = <'('> exp-infix hs dot exp-atom hs exp-postfix <')'>
 postfix            = exp-postfix vs? indent? dot exp-atom unindent?
 list               = exp-infix? <'('> (exp-infix s)* exp-infix? <')'>
 
-symbol   = #'[^ \"\\',\\n\\(\\);#\\d\\.:]+'
+symbol   = #'[^ $\"\\',\\n\\(\\);#\\d\\.:]+'
 number   = #'\\d+'
 string   = <'\"'> #'[^\"]*' <'\"'>
 
@@ -74,8 +76,7 @@ string   = <'\"'> #'[^\"]*' <'\"'>
 
 (insta/parse (insta/parser G) (tokenized-string "
 
-def x; fn
-  1 2;
+\"aaaa\"
 
 "))
 
@@ -145,6 +146,7 @@ plus(1, 2)
     :infix (fn [a op b] (->table? (vec (list op a b))))
     :infix-par (fn [a op b] (->table? (vec (list op a b))))
     :quote (fn [x] ['quote1 x])
+    :unquote (fn [x] ['unquote1 x])
     :quote-call (fn [x y] [x ['quote1 y]])}
    tree))
 

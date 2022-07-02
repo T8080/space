@@ -25,14 +25,49 @@ document'0'2'rel
 def l; quote
   a b c e
 
-l'1
+l
+")
+
+
+(run "
+
+def post; fn (title content); quote
+  div id: post
+    p $title;
+    p $content;
+
+quote; html
+  $(post '
+
+")
+
+(run "
+
+quote
+  unquote + 2 3
+
+")
+
+(parser/strip (parser/parse "
+
+quote unquote 1 2 3;
+
+"))
+
+(run "
+
+\"test\"
+
 ")
 
 (parser/parse "
-
-l'0
-
+'$(1 2 3)
 ")
+
+(run "
+'$(+ 2 3)
+")
+
 
 
 

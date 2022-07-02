@@ -72,6 +72,9 @@
   (cond (vector? g) (mapv f g)
         (map? g) (map-values f g)))
 
+(defn has-head? [exp head]
+  (and (coll? exp)
+       (= (group-first exp) head)))
 
 ;; env
 (defrecord Proc [env args body])
@@ -158,17 +161,26 @@
           (coll? f)
           (get f (evald 1)))))
 
+(defn eval-unquote1 [exp env]
+  (eval (exp 1) env))
+
+(defn eval-unquote [exp env]
+  (eval (group-rest exp) env))
+
+(defn eval-quote* [exp env]
+  (cond (has-head? exp 'unquote1) (eval-unquote1 exp env)
+        (has-head? exp 'unquote) (eval-unquote exp env)
+        (coll? exp) (group-map #(eval-quote* % env) exp)
+        :else exp))
+
 (defn eval-quote [exp env]
-  (group-rest exp))
+  (eval-quote* (group-rest exp) env))
 
 (defn eval-quote1 [exp env]
-  (exp 1))
+  (eval-quote* (exp 1) env))
 
 (declare eval-do)
 
-(defn has-head? [exp head]
-  (and (coll? exp)
-       (= (group-first exp) head)))
 
 (defn eval-do-defrec [form rest env bindings]
   (if (has-head? form 'defrec)
@@ -208,7 +220,8 @@
 
 (defn eval [exp env]
   (cond (number? exp) exp
-        (nil? exp) nil
+        (string? exp) exp
+        (nil? exp) exp
         (symbol? exp) (env-get env exp)
         (special-forms (group-first exp)) ((special-forms (group-first exp)) exp env)
         (coll? exp) (eval-apply exp env)

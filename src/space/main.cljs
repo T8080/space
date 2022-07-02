@@ -7,6 +7,7 @@
 
 (defn quote->html [x]
   (cond (string? x) x
+        (symbol? x) (str x)
         (coll? x)
         (let [tag (eval/group-first x)
               attributes (eval/group-named x)
