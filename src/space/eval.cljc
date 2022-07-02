@@ -63,6 +63,11 @@
               :while (contains? g i)]
           (g i))))
 
+(defn group-named [g]
+  (cond (vector? g) {}
+        (map? g)
+        (select-keys g (filter symbol? (keys g)))))
+
 (defn group-map [f g]
   (cond (vector? g) (mapv f g)
         (map? g) (map-values f g)))
