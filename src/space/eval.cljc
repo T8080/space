@@ -1,80 +1,11 @@
 (ns space.eval
-  [:refer-clojure :exclude [eval]])
+  (:refer-clojure :exclude [eval])
+  (:use [space.group]))
 
 (defn atom? [x]
   (instance? #?(:clj clojure.lang.Atom :cljs cljs.core.Atom)
              x))
 
-(defn map-values [f map]
-  (let [nmap (transient {})]
-    (doseq [key (keys map)]
-      (assoc! nmap key (f (map key))))
-    (persistent! nmap)))
-
-(defn group-first [g]
-  (g 0))
-
-(defn group-positions-size [g]
-  (cond (vector? g) (count g)
-        (map? g)
-        (loop [i 0]
-          (if (not (contains? g i))
-            i
-            (recur (inc i))))))
-
-(defn map-rest [g]
-  (let [size (group-positions-size g)]
-    (-> (reduce (fn [m i]
-                  (assoc m (dec i) (m i)))
-                g
-                (rest (range size)))
-        (dissoc (dec size)))))
-
-(reduce (fn [m i]
-          (assoc m (dec i) (m i)))
-        {0 0, 1 1, 2 2}
-        [1 2])
-
-(defn group-rest [g]
-  (cond (vector? g) (subvec g 1)
-        (map? g) (map-rest g)))
-
-(defn vec-name-positionals [argnames argvec from]
-  (zipmap argnames (subvec argvec from)))
-
-(defn map-name-positionals [argnames argmap from]
-  (loop [position 0, named {}]
-    (if (contains? argmap (+ position from))
-      (recur (inc position)
-             (assoc named
-                    (argnames position)
-                    (argmap (+ position from))))
-      (merge argmap named))))
-
-(defn group-name-positionals [argnames arggroup from]
-  (cond (vector? arggroup) (vec-name-positionals argnames arggroup from)
-        (map? arggroup) (map-name-positionals argnames arggroup from)))
-
-
-(defn group-positionals [g from]
-  (cond (vector? g) (subvec g from)
-        (map? g)
-        (for [i (iterate inc from)
-              :while (contains? g i)]
-          (g i))))
-
-(defn group-named [g]
-  (cond (vector? g) {}
-        (map? g)
-        (select-keys g (filter symbol? (keys g)))))
-
-(defn group-map [f g]
-  (cond (vector? g) (mapv f g)
-        (map? g) (map-values f g)))
-
-(defn has-head? [exp head]
-  (and (coll? exp)
-       (= (group-first exp) head)))
 
 ;; env
 (defrecord Proc [env args body])
@@ -153,7 +84,7 @@
                                        0))))
 
 (defn eval-apply [exp env]
-  (let [evald (group-map #(eval % env)
+  (let [evald (group-map-values #(eval % env)
                          exp)
         f (group-first evald)
         args evald]
@@ -178,7 +109,7 @@
 (defn eval-quote* [exp env]
   (cond (has-head? exp 'unquote1) (eval-unquote1 exp env)
         (has-head? exp 'unquote) (eval-unquote exp env)
-        (coll? exp) (group-map #(eval-quote* % env) exp)
+        (coll? exp) (group-map-values #(eval-quote* % env) exp)
         :else exp))
 
 (defn eval-quote [exp env]
@@ -247,7 +178,16 @@
    'first group-first
    'rest group-rest
    'println println
-   'map (fn [m f] (group-map #(call-proc f [%]) m))})
+   'positionals #(group-positionals %1 0)
+   'named group-named
+   'map-values (fn [m f] (group-map-values #(call-proc f [%]) m))
+   'map (fn [m f] (group-map #(call-proc f [%])) m)
+   'for-each (fn [m f] (group-for-each #(call-proc f [%1 %2]) m))
+   'append group-append
+   'pop group-pop
+   'set group-set
+   'reduce (fn [m i f] (group-reduce-values #(call-proc f [%1 %2]) i m))})
+
    ;; 'map (fn [m f] m)
 
 

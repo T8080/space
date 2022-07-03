@@ -12,10 +12,13 @@
 
 (run "
 def l; quote
-  a b c e
+  1 2 3 4
 
-l
+reduce l 0 (fn (a b) a .+ b);
+
 ")
+
+
 
 
 (run "
@@ -71,12 +74,12 @@ def map; fn (m f)
 
 ")
 
-(parser/parse "
+(parser/strip (parser/parse "
 
 a: a
   b: b
 
-")
+"))
 
 (run "
 
