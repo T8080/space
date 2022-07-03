@@ -145,6 +145,13 @@
                     (eval  (second keyvals) env))
            (drop 2 keyvals))))
 
+(defn call-proc [proc args]
+  (eval (:body proc)
+        (merge (:env proc)
+               (group-name-positionals (:args proc)
+                                       args
+                                       0))))
+
 (defn eval-apply [exp env]
   (let [evald (group-map #(eval % env)
                          exp)
@@ -160,6 +167,7 @@
                                                1)))
           (coll? f)
           (get f (evald 1)))))
+
 
 (defn eval-unquote1 [exp env]
   (eval (exp 1) env))
@@ -235,7 +243,14 @@
    '/ /
    'dec dec
    'inc inc
-   '= =})
+   '= =
+   'first group-first
+   'rest group-rest
+   'println println
+   'map (fn [m f] (group-map #(call-proc f [%]) m))})
+   ;; 'map (fn [m f] m)
+
+
 
 (eval '[do
         [defrec f [fn [] [g]]]

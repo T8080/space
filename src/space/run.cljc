@@ -11,17 +11,6 @@
     (eval/eval-do lisp eval/default-env)))
 
 (run "
-
-def document; quote
-  head
-    title \"test\";
-    link rel: \"stylesheet\";
-
-document'0'2'rel
-
-")
-
-(run "
 def l; quote
   a b c e
 
@@ -31,28 +20,63 @@ l
 
 (run "
 
-def post; fn (title content); quote
-  div id: post
-    p $title;
-    p $content;
+def posts; quote
+  (title: title-1
+   content: content-1)
+  (title: title-2
+   content: content-2)
 
-quote; html
-  $(post '
+def render-post; fn (p)
+  quote post
+    strong $p'title;
+    p $p'content;
+
+def render-post-page; fn (ps)
+  quote div
+    h2 blog-posts;
+    br;
+    unquote map posts render-post;
+    br;
+
+render-post-page posts;
 
 ")
 
 (run "
 
-quote
-  unquote + 2 3
+def l; quote
+  1 2 3 4
 
+l .map (fn (x) x)
 ")
+
+
 
 (parser/strip (parser/parse "
 
-quote unquote 1 2 3;
+list.map(f)
 
 "))
+
+(parser/parse "
+list.map(f)
+")
+
+(run "
+
+def map; fn (m f)
+  if m .= '()
+    m
+    f(m.first) .cons m.rest.map(f)
+
+")
+
+(parser/parse "
+
+a: a
+  b: b
+
+")
 
 (run "
 

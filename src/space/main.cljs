@@ -18,6 +18,10 @@
                (str/join (map quote->html body))
                "</" tag ">"))))
 
+(quote->html '{0 div, id post, 1 "test"})
+
+(quote->html '[div [{0 div, id post, 1 [p aa], 2 [p bb]}]])
+
 (defn output-html [s]
   (let [out (js/document.querySelector "#htmloutput")]
     (set! (.-innerHTML out) s)))

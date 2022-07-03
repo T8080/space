@@ -62,7 +62,7 @@ infix-par          = <'('> exp-infix hs dot exp-atom hs exp-postfix <')'>
 postfix            = exp-postfix vs? indent? dot exp-atom unindent?
 list               = exp-infix? <'('> (exp-infix s)* exp-infix? <')'>
 
-symbol   = #'[^ $\"\\',\\n\\(\\);#\\d\\.:]+'
+symbol   = #'[^ $\"\\',\\n\\(\\);#\\d\\.:][^ $\"\\',\\n\\(\\);#\\.:]*'
 number   = #'\\d+'
 string   = <'\"'> #'[^\"]*' <'\"'>
 
@@ -130,7 +130,7 @@ plus(1, 2)
 
 
 (defn postfix [receiver exp]
-  (if (seq? exp)
+  (if (coll? exp)
     (->table?  (vec (cons (first exp) (cons receiver (rest exp)))))
     (->table? (vec (list exp receiver)))))
 
