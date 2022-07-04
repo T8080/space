@@ -12,9 +12,12 @@
 
 (run "
 def l; quote
-  1 2 3 4
+  0 1 2 3
 
-reduce l 0 (fn (a b) a .+ b);
+def z; quote
+  4 3 2 1
+
+reduce l 0 +;
 
 ")
 

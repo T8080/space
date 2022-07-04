@@ -83,22 +83,22 @@
                                        args
                                        0))))
 
-(defn eval-apply [exp env]
-  (let [evald (group-map-values #(eval % env)
-                         exp)
-        f (group-first evald)
-        args evald]
-    (cond (fn? f)
-          (apply f (group-positionals args 1))
-          (instance? Proc f)
-          (eval (:body f)
-                (merge (:env f)
-                       (group-name-positionals (:args f)
-                                               args
-                                               1)))
-          (coll? f)
-          (get f (evald 1)))))
+(defn eval-apply* [f group from]
+  (cond (fn? f)
+        (apply f (group-positionals group from))
+        (instance? Proc f)
+        (eval (:body f)
+              (merge (:env f)
+                     (group-name-positionals (:args f)
+                                             group
+                                             from)))
+        (coll? f)
+        (get f (group from))))
 
+(defn eval-apply [exp env]
+  (let [group (group-map-values #(eval % env) exp)
+        f (group-first group)]
+    (eval-apply* f group 1)))
 
 (defn eval-unquote1 [exp env]
   (eval (exp 1) env))
@@ -180,13 +180,14 @@
    'println println
    'positionals #(group-positionals %1 0)
    'named group-named
-   'map-values (fn [m f] (group-map-values #(call-proc f [%]) m))
-   'map (fn [m f] (group-map #(call-proc f [%])) m)
-   'for-each (fn [m f] (group-for-each #(call-proc f [%1 %2]) m))
+   'map-values (fn [m f] (group-map-values #(eval-apply* f [%] 0) m))
+   'map (fn [m f] (group-map #(eval-apply* f [%1 %2] 0) m))
+   'for-each (fn [m f] (group-for-each #(eval-apply* f [%1 %2] 0) m))
    'append group-append
    'pop group-pop
    'set group-set
-   'reduce (fn [m i f] (group-reduce-values #(call-proc f [%1 %2]) i m))})
+   'reduce (fn [m i f] (group-reduce-values #(eval-apply* f [%1 %2] 0) i m))})
+
 
    ;; 'map (fn [m f] m)
 

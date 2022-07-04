@@ -90,7 +90,6 @@
     (map? g)
     (g (dec (group-positions-size g)))))
 
-
 (def group-set assoc)
 
 (defn has-head? [exp head]
